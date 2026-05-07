@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Inventory Management — DBMS Project | Group 2C71</title>
+  <meta name="description" content="Smart Inventory Management for Retail Chain — UCS310 DBMS Lab Project, TIET Patiala, Group 2C72" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- sql.js: in-browser SQLite via WebAssembly -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     LOADER
+     ══════════════════════════════════════════════════════ -->
+<div id="loader">
+  <div class="ld-icon">🗄️</div>
+  <div class="ld-title">SMART_INVENTORY.db</div>
+  <div class="ld-bar"><div class="ld-fill" id="ld-fill"></div></div>
+  <div class="ld-status" id="ld-status">Initialising…</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     APP SHELL
+     ══════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ── SIDEBAR OVERLAY (mobile) ─────────────────────── -->
+  <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+  <!-- ── TOPBAR ────────────────────────────────────────── -->
+  <header class="topbar">
+    <button class="topbar-hamburger" onclick="openSidebar()" aria-label="Open menu">☰</button>
+    <div class="topbar-brand">
+      <div class="topbar-logo">📦</div>
+      <div class="topbar-name">Smart<span>Inventory</span></div>
+    </div>
+    <div class="topbar-divider"></div>
+    <span class="topbar-info">UCS310 – Database Management Systems | TIET Patiala</span>
+    <div class="topbar-right">
+      <div class="db-label"><div class="db-dot"></div>DB Live</div>
+      <span class="badge badge-g">UCS310</span>
+      <span class="badge badge-b hide-mobile">Group 2C71</span>
+    </div>
+  </header>
+
+  <!-- ── SIDEBAR ───────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="sidebar-scroll">
+
+      <div class="sb-section">Dashboard</div>
+      <div class="nav-item" data-page="dashboard" onclick="gotoPage('dashboard')">
+        <span class="ni">📊</span> Dashboard
+      </div>
+
+      <div class="sb-section">Operations</div>
+      <div class="nav-item" data-page="products" onclick="gotoPage('products')">
+        <span class="ni">📦</span> Products
+      </div>
+      <div class="nav-item" data-page="inventory" onclick="gotoPage('inventory')">
+        <span class="ni">🏪</span> Inventory
+      </div>
+      <div class="nav-item" data-page="sales" onclick="gotoPage('sales')">
+        <span class="ni">💰</span> Process Sale
+      </div>
+      <div class="nav-item" data-page="transfer" onclick="gotoPage('transfer')">
+        <span class="ni">🔄</span> Stock Transfer
+      </div>
+
+      <div class="sb-section">Management</div>
+      <div class="nav-item" data-page="suppliers" onclick="gotoPage('suppliers')">
+        <span class="ni">🚚</span> Suppliers
+      </div>
+      <div class="nav-item" data-page="orders" onclick="gotoPage('orders')">
+        <span class="ni">📋</span> Purchase Orders
+      </div>
+
+      <div class="sb-section">Analytics</div>
+      <div class="nav-item" data-page="reports" onclick="gotoPage('reports')">
+        <span class="ni">📈</span> Reports
+      </div>
+      <div class="nav-item" data-page="alerts" onclick="gotoPage('alerts')">
+        <span class="ni">⚠️</span> Stock Alerts
+      </div>
+      <div class="nav-item" data-page="auditlog" onclick="gotoPage('auditlog')">
+        <span class="ni">📝</span> Audit Log
+      </div>
+
+      <div class="sb-section">Developer</div>
+      <div class="nav-item" data-page="sqleditor" onclick="gotoPage('sqleditor')">
+        <span class="ni">💻</span> SQL Editor
+      </div>
+
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════════
+       MAIN
+       ══════════════════════════════════════════════════ -->
+  <main class="main">
+    <!-- Alert lives here, above all pages -->
+    <div id="alert-wrap"></div>
+
+    <!-- ── DASHBOARD ─────────────────────────────────── -->
+    <div class="page" id="page-dashboard">
+      <div class="pg-hdr">
+        <div class="pg-title">Dashboard <span>Overview</span></div>
+        <div class="pg-desc">Live snapshot of inventory, sales and alerts across all branches</div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card sc-g">
+          <div class="stat-num" id="d-products">—</div>
+          <div class="stat-label">Total Products</div>
+          <div class="stat-icon">📦</div>
+        </div>
+        <div class="stat-card sc-b">
+          <div class="stat-num" id="d-branches">—</div>
+          <div class="stat-label">Branches</div>
+          <div class="stat-icon">🏢</div>
+        </div>
+        <div class="stat-card sc-o">
+          <div class="stat-num" id="d-sales">—</div>
+          <div class="stat-label">Total Revenue</div>
+          <div class="stat-icon">💰</div>
+        </div>
+        <div class="stat-card sc-r">
+          <div class="stat-num" id="d-lowstock">—</div>
+          <div class="stat-label">Low Stock Items</div>
+          <div class="stat-icon">⚠️</div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">🏪</span>
+            <span class="panel-hdr-title">Inventory by Branch</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="dash-inv-table">
+                <thead><tr><th>Branch</th><th>Product</th><th>Qty</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">💰</span>
+            <span class="panel-hdr-title">Recent Sales</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="dash-sales-table">
+                <thead><tr><th>ID</th><th>Branch</th><th>Date</th><th>Amount</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📉</span>
+            <span class="panel-hdr-title">Low Stock Alert</span>
+          </div>
+          <div class="panel-body" id="low-stock-dash"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">⏰</span>
+            <span class="panel-hdr-title">Expiring Soon (≤7 days)</span>
+          </div>
+          <div class="panel-body" id="expiry-dash"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PRODUCTS ───────────────────────────────────── -->
+    <div class="page" id="page-products">
+      <div class="pg-hdr">
+        <div class="pg-title">Product <span>Management</span></div>
+        <div class="pg-desc">Add and manage all products in the catalog</div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">➕</span>
+            <span class="panel-hdr-title">Add New Product</span>
+          </div>
+          <div class="panel-body">
+            <div class="form-group">
+              <label>Product Name</label>
+              <input id="p-name" placeholder="e.g. Coca Cola 500ml" />
+            </div>
+            <div class="g2">
+              <div class="form-group">
+                <label>Category</label>
+                <select id="p-cat"></select>
+              </div>
+              <div class="form-group">
+                <label>Supplier</label>
+                <select id="p-sup"></select>
+              </div>
+            </div>
+            <div class="g2">
+              <div class="form-group">
+                <label>Unit Price (₹)</label>
+                <input id="p-price" type="number" min="0.01" step="0.01" placeholder="0.00" />
+              </div>
+              <div class="form-group">
+                <label>Reorder Level</label>
+                <input id="p-reorder" type="number" min="0" placeholder="20" />
+              </div>
+            </div>
+            <button class="btn btn-accent btn-full" onclick="addProduct()">➕ Add Product</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📦</span>
+            <span class="panel-hdr-title">Product Catalog</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="products-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Supplier</th><th>Price</th><th>Reorder</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INVENTORY ──────────────────────────────────── -->
+    <div class="page" id="page-inventory">
+      <div class="pg-hdr">
+        <div class="pg-title">Inventory <span>Management</span></div>
+        <div class="pg-desc">View and update stock levels across all branches</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="panel-hdr-icon">💾</span>
+          <span class="panel-hdr-title">Add / Update Stock Entry</span>
+        </div>
+        <div class="panel-body">
+          <div class="g3">
+            <div class="form-group">
+              <label>Branch</label>
+              <select id="inv-branch"></select>
+            </div>
+            <div class="form-group">
+              <label>Product</label>
+              <select id="inv-product"></select>
+            </div>
+            <div class="form-group">
+              <label>Quantity</label>
+              <input id="inv-qty" type="number" min="0" placeholder="0" />
+            </div>
+            <div class="form-group">
+              <label>Expiry Date (optional)</label>
+              <input id="inv-expiry" type="date" />
+            </div>
+            <div class="form-group" style="align-self:flex-end">
+              <button class="btn btn-accent btn-full" onclick="saveInventory()">💾 Save Stock</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="panel-hdr-icon">📋</span>
+          <span class="panel-hdr-title">All Inventory Records</span>
+        </div>
+        <div class="panel-body panel-body-flush">
+          <div class="tbl-wrap">
+            <table id="inventory-table">
+              <thead><tr><th>Branch</th><th>Product</th><th>Category</th><th>Qty</th><th>Reorder Lvl</th><th>Status</th><th>Expiry</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PROCESS SALE ───────────────────────────────── -->
+    <div class="page" id="page-sales">
+      <div class="pg-hdr">
+        <div class="pg-title">Process <span>Sale</span></div>
+        <div class="pg-desc">Executes the <code style="font-family:var(--mono);color:var(--accent)">ProcessSale()</code> stored procedure — validates stock, creates Sale record, updates Inventory</div>
+      </div>
+
+      <div class="g2">
+        <!-- Form side -->
+        <div>
+          <div class="panel">
+            <div class="panel-hdr">
+              <span class="panel-hdr-icon">🛒</span>
+              <span class="panel-hdr-title">New Sale — ProcessSale(p_branch, p_product, p_quantity)</span>
+            </div>
+            <div class="panel-body">
+              <div class="form-group">
+                <label>Branch</label>
+                <select id="s-branch" onchange="onSaleBranchChange()"></select>
+              </div>
+              <div class="form-group">
+                <label>Product</label>
+                <select id="s-product" onchange="onSaleProductChange()"></select>
+              </div>
+
+              <!-- Live stock info -->
+              <div class="info-row" id="stock-info" style="display:none">
+                <span class="ir-label">Current Stock:</span>
+                <span class="ir-val" id="stock-qty-val" style="color:var(--blue)"></span>
+                <span class="ir-sep">|</span>
+                <span class="ir-label">Price:</span>
+                <span class="ir-val" id="stock-price-val" style="color:var(--accent)"></span>
+              </div>
+
+              <div class="form-group">
+                <label>Quantity to Sell</label>
+                <input id="s-qty" type="number" min="1" placeholder="1" oninput="calcTotal()" />
+              </div>
+
+              <!-- Total preview -->
+              <div class="total-box" id="total-box" style="display:none">
+                Total: <span id="total-val">₹0</span>
+              </div>
+
+              <button class="btn btn-accent btn-full" onclick="processSale()">⚡ Execute ProcessSale()</button>
+            </div>
+          </div>
+
+          <!-- SQL code view -->
+          <div class="panel">
+            <div class="panel-hdr">
+              <span class="panel-hdr-icon">💻</span>
+              <span class="panel-hdr-title">Stored Procedure — SQL</span>
+            </div>
+            <div class="panel-body" style="padding:0">
+              <div class="code-view">
+<span class="kw">CREATE PROCEDURE</span> <span class="fn">ProcessSale</span>(
+  <span class="kw">IN</span> p_branch   INT,
+  <span class="kw">IN</span> p_product  INT,
+  <span class="kw">IN</span> p_quantity INT
+)
+<span class="kw">BEGIN</span>
+  <span class="hl-line">  <span class="kw">START TRANSACTION</span>; <span class="cm">-- ACID: Atomicity</span></span>
+  <span class="kw">IF</span> stock &lt; qty <span class="kw">THEN</span>
+    <span class="kw">SIGNAL SQLSTATE</span> <span class="str">'45000'</span>
+      <span class="kw">SET MESSAGE_TEXT</span>=<span class="str">'Insufficient Stock'</span>;
+  <span class="kw">ELSE</span>
+    <span class="kw">INSERT INTO</span> Sale ...
+    <span class="kw">INSERT INTO</span> Sale_Item ...
+    <span class="kw">UPDATE</span> Inventory <span class="kw">SET</span>
+      Qty = Qty - p_quantity;
+  <span class="hl-line">  <span class="kw">COMMIT</span>; <span class="cm">-- Durability</span></span>
+  <span class="kw">END IF</span>;
+<span class="kw">END</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- History side -->
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📜</span>
+            <span class="panel-hdr-title">Sale History</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="sales-table">
+                <thead><tr><th>ID</th><th>Branch</th><th>Product</th><th>Qty</th><th>Amount</th><th>Date</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STOCK TRANSFER ─────────────────────────────── -->
+    <div class="page" id="page-transfer">
+      <div class="pg-hdr">
+        <div class="pg-title">Stock <span>Transfer</span></div>
+        <div class="pg-desc">Executes <code style="font-family:var(--mono);color:var(--accent)">TransferStock()</code> — atomic transaction, both branches update together or neither does</div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">🔄</span>
+            <span class="panel-hdr-title">TransferStock(from, to, product, qty)</span>
+          </div>
+          <div class="panel-body">
+            <div class="g2">
+              <div class="form-group">
+                <label>From Branch</label>
+                <select id="t-from"></select>
+              </div>
+              <div class="form-group">
+                <label>To Branch</label>
+                <select id="t-to"></select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Product</label>
+              <select id="t-product"></select>
+            </div>
+            <div class="form-group">
+              <label>Quantity</label>
+              <input id="t-qty" type="number" min="1" placeholder="10" />
+            </div>
+            <button class="btn btn-blue btn-full" onclick="transferStock()">🔄 Execute Transfer</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📊</span>
+            <span class="panel-hdr-title">Current Branch Stock</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="transfer-table">
+                <thead><tr><th>Branch</th><th>Product</th><th>Qty</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SUPPLIERS ──────────────────────────────────── -->
+    <div class="page" id="page-suppliers">
+      <div class="pg-hdr">
+        <div class="pg-title">Supplier <span>Management</span></div>
+        <div class="pg-desc">Track suppliers — <code style="font-family:var(--mono);color:var(--accent)">GetSupplierStatus(rating)</code> function evaluates performance</div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">➕</span>
+            <span class="panel-hdr-title">Add Supplier</span>
+          </div>
+          <div class="panel-body">
+            <div class="form-group">
+              <label>Supplier Name</label>
+              <input id="sup-name" placeholder="e.g. ITC Distributor" />
+            </div>
+            <div class="form-group">
+              <label>Contact / Email</label>
+              <input id="sup-contact" placeholder="contact@email.com" />
+            </div>
+            <div class="form-group">
+              <label>Rating (0 – 5)</label>
+              <input id="sup-rating" type="number" min="0" max="5" step="0.1" placeholder="4.0" />
+            </div>
+            <button class="btn btn-accent btn-full" onclick="addSupplier()">➕ Add Supplier</button>
+
+            <div class="sdiv"></div>
+            <div class="code-view" style="font-size:11px">
+<span class="cm">-- GetSupplierStatus() FUNCTION</span>
+<span class="kw">IF</span>    p_rating &gt;= <span class="num">4.5</span> <span class="kw">THEN</span> <span class="str">'Excellent'</span>
+<span class="kw">ELSEIF</span> p_rating &gt;= <span class="num">3.5</span> <span class="kw">THEN</span> <span class="str">'Good'</span>
+<span class="kw">ELSE</span>                    <span class="str">'Average'</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">🚚</span>
+            <span class="panel-hdr-title">Suppliers — GetSupplierStatus() live output</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="suppliers-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Contact</th><th>Rating</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PURCHASE ORDERS ────────────────────────────── -->
+    <div class="page" id="page-orders">
+      <div class="pg-hdr">
+        <div class="pg-title">Purchase <span>Orders</span></div>
+        <div class="pg-desc">Auto-generated by <code style="font-family:var(--mono);color:var(--accent)">AutoReorder</code> trigger when stock drops below reorder level</div>
+      </div>
+
+      <div class="trigger-note">
+        <strong>⚡ AutoReorder Trigger:</strong>
+        <span style="color:var(--text2)"> AFTER UPDATE ON Inventory — if NEW.Quantity &lt; ReorderLevel → auto INSERT into Purchase_Order with Quantity = ReorderLevel × 2</span>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📋</span>
+            <span class="panel-hdr-title">Purchase Orders</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="orders-table">
+                <thead><tr><th>ID</th><th>Supplier</th><th>Date</th><th>Status</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📦</span>
+            <span class="panel-hdr-title">Order Items</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="order-items-table">
+                <thead><tr><th>Order</th><th>Product</th><th>Qty</th><th>Unit Price</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── REPORTS ────────────────────────────────────── -->
+    <div class="page" id="page-reports">
+      <div class="pg-hdr">
+        <div class="pg-title">Analytics <span>Reports</span></div>
+        <div class="pg-desc">Live analytical queries on actual database data — GROUP BY, JOINs, aggregate functions</div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">🏆</span>
+            <span class="panel-hdr-title">Top Selling Products</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="top-products-table">
+                <thead><tr><th>Product</th><th>Units Sold</th><th>Revenue</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">🏢</span>
+            <span class="panel-hdr-title">Branch-wise Revenue</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="branch-sales-table">
+                <thead><tr><th>Branch</th><th>Transactions</th><th>Revenue</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📊</span>
+            <span class="panel-hdr-title">Branch Inventory Summary</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="branch-inv-table">
+                <thead><tr><th>Branch</th><th>Location</th><th>Total Stock</th><th>Products</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">🚚</span>
+            <span class="panel-hdr-title">Supplier Performance</span>
+          </div>
+          <div class="panel-body panel-body-flush">
+            <div class="tbl-wrap">
+              <table id="sup-perf-table">
+                <thead><tr><th>Supplier</th><th>Rating</th><th>Status</th><th>Products</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STOCK ALERTS ───────────────────────────────── -->
+    <div class="page" id="page-alerts">
+      <div class="pg-hdr">
+        <div class="pg-title">Stock <span>Alerts</span></div>
+        <div class="pg-desc">Output of <code style="font-family:var(--mono);color:var(--accent)">LowStockProducts</code> and <code style="font-family:var(--mono);color:var(--accent)">ExpiringProducts</code> views</div>
+      </div>
+
+      <div class="g2">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">📉</span>
+            <span class="panel-hdr-title">LowStockProducts VIEW</span>
+          </div>
+          <div class="panel-body" style="padding-bottom:0">
+            <div class="code-view" style="font-size:11px;margin-bottom:14px">
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="fn">LowStockProducts</span>; <span class="cm">-- WHERE Quantity &lt; ReorderLevel</span>
+            </div>
+          </div>
+          <div class="panel-body panel-body-flush" style="padding-top:0">
+            <div class="tbl-wrap">
+              <table id="low-stock-table">
+                <thead><tr><th>Branch</th><th>Product</th><th>Qty</th><th>Reorder Lvl</th><th>Short By</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-hdr-icon">⏰</span>
+            <span class="panel-hdr-title">ExpiringProducts VIEW (≤7 days)</span>
+          </div>
+          <div class="panel-body" style="padding-bottom:0">
+            <div class="code-view" style="font-size:11px;margin-bottom:14px">
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> <span class="fn">ExpiringProducts</span>; <span class="cm">-- ExpiryDate ≤ CURDATE()+7</span>
+            </div>
+          </div>
+          <div class="panel-body panel-body-flush" style="padding-top:0">
+            <div class="tbl-wrap">
+              <table id="expiry-table">
+                <thead><tr><th>Branch</th><th>Product</th><th>Qty</th><th>Expiry</th><th>Days Left</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── AUDIT LOG ──────────────────────────────────── -->
+    <div class="page" id="page-auditlog">
+      <div class="pg-hdr">
+        <div class="pg-title">Audit <span>Log</span></div>
+        <div class="pg-desc"><code style="font-family:var(--mono);color:var(--accent)">LogInventoryChanges</code> trigger auto-inserts into Inventory_Log on every stock UPDATE</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="panel-hdr-icon">📝</span>
+          <span class="panel-hdr-title">Inventory_Log — All Changes (newest first)</span>
+        </div>
+        <div class="panel-body panel-body-flush">
+          <div class="tbl-wrap">
+            <table id="audit-table">
+              <thead><tr><th>Log ID</th><th>Branch</th><th>Product</th><th>Old Qty</th><th>New Qty</th><th>Change</th><th>Action</th><th>Timestamp</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SQL EDITOR ─────────────────────────────────── -->
+    <div class="page" id="page-sqleditor">
+      <div class="pg-hdr">
+        <div class="pg-title">SQL <span>Editor</span></div>
+        <div class="pg-desc">Run any raw SQL query directly against the live in-browser database</div>
+      </div>
+
+      <div class="sql-term">
+        <div class="term-bar">
+          <div class="term-dot td-r"></div>
+          <div class="term-dot td-y"></div>
+          <div class="term-dot td-g"></div>
+          <span class="term-file">mysql&gt; Project.db — Smart Inventory</span>
+        </div>
+        <textarea class="term-area" id="sql-input" spellcheck="false"
+          placeholder="-- Write any SQL query here&#10;SELECT * FROM Product;"></textarea>
+        <div class="term-actions">
+          <button class="btn btn-accent btn-sm" onclick="runSQL()">▶ Run</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('sql-input').value=''">✕ Clear</button>
+          <select style="width:auto;font-size:12px;padding:5px 10px;margin-left:auto;background:var(--s3);border:1px solid var(--border);color:var(--text2);border-radius:4px"
+            onchange="loadPreset(this)">
+            <option value="">— Quick Queries —</option>
+            <option value="SELECT * FROM Product;">All Products</option>
+            <option value="SELECT * FROM Inventory;">All Inventory</option>
+            <option value="SELECT * FROM Sale;">All Sales</option>
+            <option value="SELECT * FROM Sale_Item;">All Sale Items</option>
+            <option value="SELECT * FROM Supplier;">All Suppliers</option>
+            <option value="SELECT * FROM Branch;">All Branches</option>
+            <option value="SELECT * FROM Purchase_Order;">Purchase Orders</option>
+            <option value="SELECT * FROM Order_Item;">Order Items</option>
+            <option value="SELECT * FROM Inventory_Log;">Audit Log</option>
+            <option value="SELECT b.BranchName, p.Name, i.Quantity, p.ReorderLevel&#10;FROM Inventory i&#10;JOIN Branch b ON i.BranchID=b.BranchID&#10;JOIN Product p ON i.ProductID=p.ProductID&#10;WHERE i.Quantity &lt; p.ReorderLevel;">Low Stock Query</option>
+            <option value="SELECT p.Name, SUM(si.Quantity) AS TotalSold, SUM(si.Quantity*si.UnitPrice) AS Revenue&#10;FROM Sale_Item si&#10;JOIN Product p ON si.ProductID=p.ProductID&#10;GROUP BY p.Name&#10;ORDER BY TotalSold DESC;">Top Selling Products</option>
+            <option value="SELECT b.BranchName, COUNT(s.SaleID) AS Transactions, SUM(s.TotalAmount) AS Revenue&#10;FROM Sale s&#10;JOIN Branch b ON s.BranchID=b.BranchID&#10;GROUP BY b.BranchName&#10;ORDER BY Revenue DESC;">Branch Revenue</option>
+            <option value="SELECT b.BranchID, SUM(i.Quantity) AS TotalStock&#10;FROM Inventory i&#10;JOIN Branch b ON i.BranchID=b.BranchID&#10;GROUP BY b.BranchID;">Branch Stock Summary</option>
+          </select>
+        </div>
+        <div id="sql-output" class="term-out to-inf">Ready — type a query and press Run ▶</div>
+      </div>
+
+      <div class="panel" id="sql-result-panel" style="display:none; margin-top:16px">
+        <div class="panel-hdr">
+          <span class="panel-hdr-icon">📊</span>
+          <span class="panel-hdr-title">Query Results</span>
+        </div>
+        <div class="panel-body panel-body-flush">
+          <div class="tbl-wrap" id="sql-result-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+  </main><!-- /main -->
+</div><!-- /app -->
+
+<script src="app.js"></script>
+</body>
+</html>
